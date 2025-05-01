@@ -1,0 +1,4 @@
+Removing conda
+Loading conda
+Class mapping:  {'moth': 0, 'non_moth': 1}
+4,010,110 total parameters.
