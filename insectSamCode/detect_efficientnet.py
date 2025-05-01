@@ -1,0 +1,132 @@
+from detection import save_detections, detect 
+from PIL import Image
+from typing import Any, List, Dict, Optional, Union, Tuple
+import os
+import requests
+import torch
+import torchvision.models as models
+import torch.nn as nn 
+from torchvision import transforms
+import numpy as np
+# cuda flags ,if you get OOM:
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+
+labels = ["insect"]
+threshold = 0.2
+
+detector_id = "IDEA-Research/grounding-dino-base"
+segmenter_id = "martintmv/InsectSAM"
+
+#efficientnet model loaded (total dataset model) 
+transform_tensor = transforms.Compose([
+    transforms.ToTensor()])
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model = models.efficientnet_b0(weights='DEFAULT')
+model.classifier[1] = nn.Linear(in_features=1280, out_features=2)
+model.load_state_dict(torch.load('/work/pi_mrobson_smith_edu/mothitor/binary_dataset/efficientnet/total/model_tensors/epoch_49_tensors',
+                                 map_location=device,
+                                  weights_only=True)
+                     ) 
+model = model.to(device)   
+model.eval() 
+
+#class map: {'moth': 0, 'non_moth': 1}
+class_names = ["moth", "not_moth"] 
+
+image_dir = "/work/pi_mrobson_smith_edu/mothitor/data/Mothitor4.0Pics" 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+#detections.csv contains the info: score, lable, xmin, ymin, xmax, ymax 
+
+def load_image(image_str: str) -> Image.Image:
+    if image_str.startswith("http"):
+        image = Image.open(requests.get(image_str, stream=True).raw).convert("RGB")
+    else:
+        image = Image.open(image_str).convert("RGB")
+    return image
+
+def pass_at_5(cropped_image, cutoff = 0.999): 
+    predictions = []
+    for i in range(5):
+        with torch.no_grad():
+            output = torch.nn.functional.softmax(model(cropped_image))
+        output = output.cpu().detach().numpy()
+        predictions.append(output[0][0])
+    #if all predictions greater than 0.99, then it is a moth
+    if all(pred > cutoff for pred in predictions):
+        pred_class_name = "moth"
+    else:
+        pred_class_name = "not_moth"
+    print(predictions, pred_class_name)
+    max_score = max(predictions)
+    return pred_class_name, max_score
+    
+#set prediction cutoff
+def predict_with_cutoff(cropped_image, cutoff = 0.9999):
+    with torch.no_grad():
+        output = torch.nn.functional.softmax(model(cropped_image))
+    output = output.cpu().detach().numpy()
+    #if first value of output is greater than cutoff, then it is a moth, otherwise not a moth 
+    if output[0][0] > cutoff:
+        pred_class_name = "moth"
+    else:
+        pred_class_name = "not_moth"
+    print(output, output[0][0], pred_class_name)
+    return pred_class_name
+            
+    
+def detection_with_efficientnet(
+    image: Union[Image.Image, str],
+    img_name: str,
+    labels: List[str],
+    threshold: float = 0.3,
+    detector_id: Optional[str] = None,
+):
+    if isinstance(image, str):
+        image = load_image(image)
+    detections = detect(image, labels, threshold, detector_id) 
+    
+    print("detections are: ", detections)
+    #ONE BY ONE TO AVOID RESHAPE TRANSFORM (presuambly more accurate))
+    for detection in detections:
+        #get score, xmin, ymin, xmax, ymax 
+        box = detection.box
+        score = detection.score
+        xmin = box.xmin 
+        ymin = box.ymin
+        xmax = box.xmax
+        ymax = box.ymax
+        #crop out the image for that specific detection
+        #crop coordinates described left, upper, right, and lower pixel
+        cropped_image = image.crop((xmin, ymin, xmax, ymax))
+        cropped_image_save = cropped_image.copy()
+        #transform to tensor, make 4D (since not batched...)
+        cropped_image = transform_tensor(cropped_image).unsqueeze(0)
+        cropped_image = cropped_image.to(device)
+        pred_class_name, max_score = pass_at_5(cropped_image)  
+        if pred_class_name == "moth":
+            #save image
+            cropped_image_save.save(f"/work/pi_mrobson_smith_edu/mothitor/main/mothitor_yolo/crops/cutoff_0.9999_pass_5/{img_name}_{max_score}.jpeg")
+        
+        # #take cropped image and run on efficientnet model
+        # with torch.no_grad():
+        #     output = model(cropped_image)
+        # output = output.cpu().detach().numpy() 
+        # #get max for classes
+        # pred = np.argmax(output, axis=1)
+        # #get class names
+        # pred_class_name = [class_names[i] for i in pred]
+        # print(f"Predicted class: {pred_class_name}", "for direct outputs", output)
+        # #if predicted class non-moth, save image crop
+        # if pred_class_name[0] == "not_moth":
+        #     #save image
+        #     cropped_image_save.save(f"/work/pi_mrobson_smith_edu/mothitor/main/mothitor_yolo/crops/{img_name}_{pred_class_name[0]}_{score}.jpeg")
+#singe image try
+image_url = "/work/pi_mrobson_smith_edu/mothitor/main/mothitor_yolo/ama_2024-06-17_23_00_04.jpg"
+detection_with_efficientnet(
+    image=image_url,
+    img_name = "test",
+    labels=labels,
+    threshold=threshold,
+    detector_id=detector_id
+)
