@@ -7,10 +7,11 @@ import torch
 import torchvision.models as models
 import torch.nn as nn 
 from torchvision import transforms
-import numpy as np
+import pandas as pd
 # cuda flags ,if you get OOM:
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
+csv_dir ="/work/pi_mrobson_smith_edu/mothitor/code_main/efficientnet_data/results/limited_data_more_moths_run/detections.csv"
 labels = ["insect"]
 threshold = 0.2
 
@@ -36,7 +37,13 @@ class_names = ["moth", "not_moth"]
 image_dir = "/work/pi_mrobson_smith_edu/mothitor/data/Mothitor4.0Pics" 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-#detections.csv contains the info: score, lable, xmin, ymin, xmax, ymax 
+#detections.csv contains the info: image_name, detection_score, lable, xmin, ymin, xmax, ymax 
+#if csv has no lines, then add header
+if not os.path.exists(csv_dir):
+    with open(csv_dir, "w") as f:
+        f.write("image_name,detection_score,label,xmin,ymin,xmax,ymax\n")
+        f.flush()
+    f.close()
 
 def load_image(image_str: str) -> Image.Image:
     if image_str.startswith("http"):
@@ -57,7 +64,6 @@ def pass_at_5(cropped_image, cutoff = 0.999):
         pred_class_name = "moth"
     else:
         pred_class_name = "not_moth"
-    print(predictions, pred_class_name)
     max_score = max(predictions)
     return pred_class_name, max_score
     
@@ -71,7 +77,6 @@ def predict_with_cutoff(cropped_image, cutoff = 0.9999):
         pred_class_name = "moth"
     else:
         pred_class_name = "not_moth"
-    print(output, output[0][0], pred_class_name)
     return pred_class_name
             
     
@@ -85,8 +90,6 @@ def detection_with_efficientnet(
     if isinstance(image, str):
         image = load_image(image)
     detections = detect(image, labels, threshold, detector_id) 
-    
-    print("detections are: ", detections)
     #ONE BY ONE TO AVOID RESHAPE TRANSFORM (presuambly more accurate))
     for detection in detections:
         #get score, xmin, ymin, xmax, ymax 
@@ -104,29 +107,22 @@ def detection_with_efficientnet(
         cropped_image = transform_tensor(cropped_image).unsqueeze(0)
         cropped_image = cropped_image.to(device)
         pred_class_name, max_score = pass_at_5(cropped_image)  
-        if pred_class_name == "moth":
-            #save image
-            cropped_image_save.save(f"/work/pi_mrobson_smith_edu/mothitor/main/mothitor_yolo/crops/cutoff_0.9999_pass_5/{img_name}_{max_score}.jpeg")
+        with open(csv_dir, "a") as f:
+            f.write(f"{img_name},{score},{pred_class_name},{xmin},{ymin},{xmax},{ymax}\n")
+            f.flush()
+        f.close()
         
-        # #take cropped image and run on efficientnet model
-        # with torch.no_grad():
-        #     output = model(cropped_image)
-        # output = output.cpu().detach().numpy() 
-        # #get max for classes
-        # pred = np.argmax(output, axis=1)
-        # #get class names
-        # pred_class_name = [class_names[i] for i in pred]
-        # print(f"Predicted class: {pred_class_name}", "for direct outputs", output)
-        # #if predicted class non-moth, save image crop
-        # if pred_class_name[0] == "not_moth":
-        #     #save image
-        #     cropped_image_save.save(f"/work/pi_mrobson_smith_edu/mothitor/main/mothitor_yolo/crops/{img_name}_{pred_class_name[0]}_{score}.jpeg")
 #singe image try
-image_url = "/work/pi_mrobson_smith_edu/mothitor/main/mothitor_yolo/ama_2024-06-17_23_00_04.jpg"
-detection_with_efficientnet(
-    image=image_url,
-    img_name = "test",
-    labels=labels,
-    threshold=threshold,
-    detector_id=detector_id
-)
+df = pd.read_csv(csv_dir)
+images_already_done = df["image_name"].tolist()
+image_dir = "/work/pi_mrobson_smith_edu/mothitor/data/Mothitor4.0Pics"
+for image_name in os.listdir(image_dir):
+    if image_name in images_already_done:
+        continue
+    detection_with_efficientnet(
+        image=image_dir + "/" + image_name,
+        img_name = image_name,
+        labels=labels,
+        threshold=threshold,
+        detector_id=detector_id
+    )
