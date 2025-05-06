@@ -18,7 +18,7 @@ detector_id = "IDEA-Research/grounding-dino-base"
 segmenter_id = "martintmv/InsectSAM"
 
 image_array, detections = grounded_segmentation(
-    image=image_url,
+    image=image_url, 
     labels=labels,
     threshold=threshold,
     polygon_refinement=True,
@@ -28,7 +28,7 @@ image_array, detections = grounded_segmentation(
 
 
 #save image
-# image_array = Image.fromarray(image_array)
+# image_array = Image.fromarray(image_array) 
 save_detections(
     image=image_array,
     detections=detections,
