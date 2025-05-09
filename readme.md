@@ -1,5 +1,7 @@
 # Project File Organization:
 
+REPO LINK: https://github.com/SanjanaYasna/mothitor_code.git (in case  writeup/paper copy.pdf doesn't show in gradescope assignment)
+
 ## Paper for project overview (recommended as a start)
 
 Located in writeup/paper copy.pdf
