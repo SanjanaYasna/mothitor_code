@@ -47,11 +47,11 @@ NOTE: all these files were done on a remote environment with abolute paths to fo
 
 These are the detections from EfficientNet Full used to answer questions regarding insect prescence in Macliesh images at different times the traps were activated
 
-## InsectSAM folder:
+## insectsamCode folder:
 
-This is mostly code adapted from InsectSAM repo, with adjustments. Credit goes to : https://github.com/martintomov/RB-IBDM/tree/main
+Contains mix of code adapted from InsectSAM project (https://github.com/martintomov/RB-IBDM/tree/main), with additional code for integration with EficientNet models
 
-```detect_efficientnet.py```: One-off script that may not be very usable. Calls GroundingDINO to get detections, and EfficientNet Full after to classify. This file also saves image crops for moths (this was just used for personal inspection of a few Macleish images)
+```detect_efficientnet.py```:  Call GroundingDINO to get detections, and EfficientNet Full after to classify, for use if bounding boxes haven't been logged ahead of time, just like detect_efficientnet.py script. This is basically entire ml pipeline: a combination of draw_bounding_box.py and predict_from_bounding_box.py
 
 ```detection.py```: GroundingDINO code for image detection/annotation
 
@@ -59,11 +59,8 @@ This is mostly code adapted from InsectSAM repo, with adjustments. Credit goes t
 
 The other files weren't used/run much, so not described.
 
-## insectsamCode folder:
+# Model Availability: 
 
-Contains mix of code adapted from InsectSAM, with additional code for integration with EficientNet
+EfficientNet Full and EfficientNet limited models found in huggingface: https://huggingface.co/sanyasna517/mothitor_ml_models
 
-```detect_efficientnet.py```:  Call GroundingDINO to get detections, and EfficientNet Full after to classify, for use if bounding boxes haven't been logged ahead of time, just like detect_efficientnet.py This is basically entire ml pipeline, and a combination of draw_bounding_box.py and predict_from_bounding_box.py
-
-detection.py and segmentation.py were repeated files from InsectSAM folder. 
-
+GroundingDINO loaded from https://huggingface.co/IDEA-Research/grounding-dino-base 
